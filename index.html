@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Ledger — Expense Tracker</title>
+<link rel="icon" href="data:,">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #14181C;
+    color: #E8E6DE;
+    font-family: 'Source Serif 4', Georgia, serif;
+    padding: 32px 20px 80px;
+  }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 640px; margin: 0 auto; }
+
+  input, select {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    background: #1D2329;
+    border: 1px solid #2A323A;
+    color: #E8E6DE;
+    border-radius: 3px;
+    padding: 9px 10px;
+    font-size: 14px;
+    outline: none;
+  }
+  input:focus, select:focus { border-color: #D9A441; }
+  input::placeholder { color: #626A75; }
+  select { cursor: pointer; }
+
+  button { font-family: inherit; }
+  .btn-add {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    background: #D9A441;
+    color: #14181C;
+    border: none;
+    border-radius: 3px;
+    padding: 9px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-add:hover { background: #E5B457; }
+  .btn-add:disabled { opacity: 0.5; cursor: default; }
+
+  .btn-settings {
+    background: none;
+    border: 1px solid #2A323A;
+    border-radius: 4px;
+    color: #8B92A0;
+    padding: 7px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+  }
+  .btn-settings.active { color: #D9A441; border-color: #D9A441; }
+
+  .del-btn {
+    background: none;
+    border: none;
+    color: #626A75;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 3px;
+    display: flex;
+  }
+  .del-btn:hover { color: #C1666B; background: #1D2329; }
+  .row:hover { background: #171C21; }
+
+  .card { background: #1D2329; border: 1px solid #2A323A; border-radius: 6px; padding: 18px; }
+
+  .toggle {
+    width: 40px; height: 22px; border-radius: 11px; border: 1px solid #2A323A;
+    background: #1D2329; position: relative; cursor: pointer; flex-shrink: 0;
+  }
+  .toggle.on { background: #6FA88A; }
+  .toggle .knob {
+    position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+    border-radius: 50%; background: #E8E6DE; transition: left .15s;
+  }
+  .toggle.on .knob { left: 20px; }
+
+  .chip {
+    font-family: 'IBM Plex Mono', monospace;
+    border-radius: 4px; padding: 6px 10px; font-size: 12px; cursor: pointer; border: 1px solid;
+  }
+  .bar-track { flex: 1; background: #1D2329; border-radius: 2px; height: 8px; position: relative; }
+  .bar-fill { height: 100%; border-radius: 2px; }
+  .bar-marker { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #E8E6DE; }
+
+  .alert-box {
+    background: rgba(193,102,107,0.12);
+    border: 1px solid rgba(193,102,107,0.4);
+    border-radius: 6px; padding: 12px 16px; margin-bottom: 24px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .alert-line { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:28px;">
+    <div style="display:flex; align-items:baseline; gap:10px;">
+      <span style="font-size:20px;">📖</span>
+      <h1 style="font-size:26px; font-weight:600; margin:0; letter-spacing:0.2px;">The Ledger</h1>
+    </div>
+    <button class="btn-settings" id="budgetToggleBtn">⚙ Budgets</button>
+  </div>
+
+  <!-- Budget panel -->
+  <div class="card" id="budgetPanel" style="display:none; margin-bottom:24px;">
+    <div style="font-size:13px; color:#8B92A0; margin-bottom:12px;">Monthly income (used to show your savings)</div>
+    <input type="number" step="0.01" id="incomeInput" placeholder="e.g. 3000" style="width:140px; margin-bottom:18px;" />
+
+    <div style="display:flex; align-items:center; justify-content:space-between; border-top:1px solid #2A323A; padding-top:16px; margin-bottom:16px;">
+      <div>
+        <div style="font-size:13px; color:#E8E6DE; margin-bottom:3px;">Use the 50/30/20 rule</div>
+        <div style="font-size:12px; color:#8B92A0;">50% needs, 30% wants, 20% savings — based on your income</div>
+      </div>
+      <div class="toggle" id="ruleToggle"><div class="knob"></div></div>
+    </div>
+
+    <div id="categoryTypesWrap" style="display:none; margin-bottom:20px;">
+      <div style="font-size:13px; color:#8B92A0; margin-bottom:10px;">Tap a category to mark it a need or a want</div>
+      <div id="categoryChips" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+    </div>
+
+    <div style="font-size:13px; color:#8B92A0; margin-bottom:12px;">Category limits (leave blank for none)</div>
+    <div id="categoryLimitsGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;"></div>
+
+    <button class="btn-add" id="saveBudgetBtn">Save budget</button>
+  </div>
+
+  <!-- Alerts -->
+  <div id="alertBox" class="alert-box" style="display:none;"></div>
+
+  <!-- Summary -->
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:1px; background:#2A323A; border-radius:6px; overflow:hidden; margin-bottom:6px;">
+    <div style="background:#1D2329; padding:18px 20px;">
+      <div style="font-size:12px; color:#8B92A0; margin-bottom:6px;">This month</div>
+      <div class="mono" id="thisMonthTotal" style="font-size:28px; font-weight:600;">$0.00</div>
+    </div>
+    <div style="background:#1D2329; padding:18px 20px;">
+      <div style="font-size:12px; color:#8B92A0; margin-bottom:6px;" id="secondCardLabel">All time</div>
+      <div class="mono" id="secondCardValue" style="font-size:28px; font-weight:600; color:#8B92A0;">$0.00</div>
+    </div>
+  </div>
+  <div id="overspendNote" style="font-size:13px; color:#C1666B; margin-bottom:24px; display:none;"></div>
+
+  <!-- 50/30/20 breakdown -->
+  <div id="ruleSection" style="margin-bottom:32px; display:none;">
+    <div style="font-size:13px; color:#8B92A0; margin-bottom:10px;">50 / 30 / 20 rule, this month</div>
+    <div id="ruleBars"></div>
+  </div>
+
+  <!-- Category breakdown -->
+  <div id="categorySection" style="margin-bottom:32px; display:none;">
+    <div style="font-size:13px; color:#8B92A0; margin-bottom:10px;">By category, this month</div>
+    <div id="categoryBars"></div>
+  </div>
+
+  <!-- Add form -->
+  <form class="card" id="addForm" style="margin-bottom:32px;">
+    <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+      <input type="number" step="0.01" id="amountInput" placeholder="0.00" style="width:100px;" />
+      <select id="categorySelect"></select>
+      <input type="date" id="dateInput" />
+      <input type="text" id="noteInput" placeholder="Note (optional)" style="flex:1; min-width:120px;" />
+    </div>
+    <div id="formError" style="color:#C1666B; font-size:13px; margin-bottom:10px; display:none;"></div>
+    <button type="submit" class="btn-add">+ Add expense</button>
+  </form>
+
+  <!-- Entries -->
+  <div id="entriesEmpty" style="text-align:center; color:#8B92A0; padding:40px 0; font-size:14px; border-top:1px solid #2A323A; display:none;">
+    No expenses yet. Add your first one above.
+  </div>
+  <div id="entriesList"></div>
+
+</div>
+
+<script>
+const CATEGORIES = [
+  { name: "Food", color: "#C1666B" },
+  { name: "Transport", color: "#7C93A8" },
+  { name: "Housing", color: "#D9A441" },
+  { name: "Utilities", color: "#6FA88A" },
+  { name: "Entertainment", color: "#9C7FB0" },
+  { name: "Health", color: "#5B9BD5" },
+  { name: "Shopping", color: "#B8834A" },
+  { name: "Other", color: "#8B92A0" },
+];
+const DEFAULT_CATEGORY_TYPE = {
+  Food: "needs", Transport: "needs", Housing: "needs", Utilities: "needs", Health: "needs",
+  Entertainment: "wants", Shopping: "wants", Other: "wants",
+};
+const RULE_BUCKETS = [
+  { key: "needs", label: "Needs", pct: 0.5, color: "#6FA88A" },
+  { key: "wants", label: "Wants", pct: 0.3, color: "#D9A441" },
+  { key: "savings", label: "Savings", pct: 0.2, color: "#5B9BD5" },
+];
+
+const catColor = (name) => (CATEGORIES.find(c => c.name === name) || CATEGORIES[CATEGORIES.length-1]).color;
+const fmtMoney = (n) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const todayStr = () => new Date().toISOString().slice(0,10);
+const monthLabel = (dateStr) => new Date(dateStr + "T00:00:00").toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+// ---- State, backed by localStorage ----
+let entries = JSON.parse(localStorage.getItem("ledger.expenses") || "[]");
+let budget = JSON.parse(localStorage.getItem("ledger.budget") || "null") || {
+  monthlyIncome: "", categoryLimits: {}, categoryTypes: { ...DEFAULT_CATEGORY_TYPE }, useRule: false,
+};
+
+function saveEntries() { localStorage.setItem("ledger.expenses", JSON.stringify(entries)); }
+function saveBudget() { localStorage.setItem("ledger.budget", JSON.stringify(budget)); }
+
+// ---- Populate static bits ----
+const categorySelect = document.getElementById("categorySelect");
+CATEGORIES.forEach(c => {
+  const opt = document.createElement("option");
+  opt.value = c.name; opt.textContent = c.name;
+  categorySelect.appendChild(opt);
+});
+document.getElementById("dateInput").value = todayStr();
+document.getElementById("incomeInput").value = budget.monthlyIncome || "";
+
+// ---- Budget panel toggle ----
+const budgetPanel = document.getElementById("budgetPanel");
+const budgetToggleBtn = document.getElementById("budgetToggleBtn");
+budgetToggleBtn.addEventListener("click", () => {
+  const showing = budgetPanel.style.display !== "none";
+  budgetPanel.style.display = showing ? "none" : "block";
+  budgetToggleBtn.classList.toggle("active", !showing);
+});
+
+const ruleToggle = document.getElementById("ruleToggle");
+const categoryTypesWrap = document.getElementById("categoryTypesWrap");
+function renderRuleToggle() {
+  ruleToggle.classList.toggle("on", budget.useRule);
+  categoryTypesWrap.style.display = budget.useRule ? "block" : "none";
+}
+ruleToggle.addEventListener("click", () => {
+  budget.useRule = !budget.useRule;
+  renderRuleToggle();
+});
+
+function renderCategoryChips() {
+  const wrap = document.getElementById("categoryChips");
+  wrap.innerHTML = "";
+  CATEGORIES.forEach(c => {
+    const type = budget.categoryTypes[c.name] || "wants";
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip";
+    chip.style.borderColor = type === "needs" ? "#6FA88A" : "#D9A441";
+    chip.style.background = type === "needs" ? "rgba(111,168,138,0.12)" : "rgba(217,164,65,0.1)";
+    chip.style.color = type === "needs" ? "#6FA88A" : "#D9A441";
+    chip.textContent = `${c.name} · ${type === "needs" ? "Need" : "Want"}`;
+    chip.addEventListener("click", () => {
+      budget.categoryTypes[c.name] = type === "needs" ? "wants" : "needs";
+      renderCategoryChips();
+    });
+    wrap.appendChild(chip);
+  });
+}
+
+function renderCategoryLimitsGrid() {
+  const grid = document.getElementById("categoryLimitsGrid");
+  grid.innerHTML = "";
+  CATEGORIES.forEach(c => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex; align-items:center; gap:8px;";
+    row.innerHTML = `
+      <div style="width:7px; height:7px; border-radius:50%; background:${c.color}; flex-shrink:0;"></div>
+      <div style="font-size:13px; color:#C7C4BA; width:90px; flex-shrink:0;">${c.name}</div>
+    `;
+    const input = document.createElement("input");
+    input.type = "number"; input.step = "0.01"; input.placeholder = "—";
+    input.style.width = "100%";
+    input.value = budget.categoryLimits[c.name] ?? "";
+    input.addEventListener("input", (e) => { budget.categoryLimits[c.name] = e.target.value; });
+    row.appendChild(input);
+    grid.appendChild(row);
+  });
+}
+
+document.getElementById("saveBudgetBtn").addEventListener("click", () => {
+  budget.monthlyIncome = document.getElementById("incomeInput").value;
+  const cleanLimits = {};
+  for (const [name, val] of Object.entries(budget.categoryLimits)) {
+    if (val !== "" && val != null && !isNaN(parseFloat(val))) cleanLimits[name] = parseFloat(val);
+  }
+  budget.categoryLimits = cleanLimits;
+  saveBudget();
+  budgetPanel.style.display = "none";
+  budgetToggleBtn.classList.remove("active");
+  renderAll();
+});
+
+renderRuleToggle();
+renderCategoryChips();
+renderCategoryLimitsGrid();
+
+// ---- Add expense form ----
+document.getElementById("addForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const amountInput = document.getElementById("amountInput");
+  const dateInput = document.getElementById("dateInput");
+  const noteInput = document.getElementById("noteInput");
+  const errorEl = document.getElementById("formError");
+  const value = parseFloat(amountInput.value);
+
+  if (!amountInput.value || isNaN(value) || value <= 0) {
+    errorEl.textContent = "Enter an amount greater than 0.";
+    errorEl.style.display = "block";
+    return;
+  }
+  if (!dateInput.value) {
+    errorEl.textContent = "Pick a date.";
+    errorEl.style.display = "block";
+    return;
+  }
+  errorEl.style.display = "none";
+
+  entries.unshift({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+    amount: value,
+    category: categorySelect.value,
+    note: noteInput.value.trim(),
+    date: dateInput.value,
+  });
+  saveEntries();
+  amountInput.value = "";
+  noteInput.value = "";
+  renderAll();
+});
+
+function deleteEntry(id) {
+  entries = entries.filter(en => en.id !== id);
+  saveEntries();
+  renderAll();
+}
+
+// ---- Rendering ----
+function renderAll() {
+  const currentMonthKey = todayStr().slice(0,7);
+  const thisMonthTotal = entries.filter(e => e.date.slice(0,7) === currentMonthKey).reduce((s,e) => s+e.amount, 0);
+  const allTimeTotal = entries.reduce((s,e) => s+e.amount, 0);
+  const income = budget.monthlyIncome === "" ? null : parseFloat(budget.monthlyIncome);
+  const savings = income != null && !isNaN(income) ? income - thisMonthTotal : null;
+
+  document.getElementById("thisMonthTotal").textContent = "$" + fmtMoney(thisMonthTotal);
+
+  const secondLabel = document.getElementById("secondCardLabel");
+  const secondValue = document.getElementById("secondCardValue");
+  if (savings != null) {
+    secondLabel.textContent = "Savings so far";
+    secondValue.textContent = (savings < 0 ? "-" : "") + "$" + fmtMoney(Math.abs(savings));
+    secondValue.style.color = savings < 0 ? "#C1666B" : "#6FA88A";
+  } else {
+    secondLabel.textContent = "All time";
+    secondValue.textContent = "$" + fmtMoney(allTimeTotal);
+    secondValue.style.color = "#8B92A0";
+  }
+
+  const overspendNote = document.getElementById("overspendNote");
+  if (savings != null && savings < 0) {
+    overspendNote.style.display = "block";
+    overspendNote.textContent = `You've spent $${fmtMoney(Math.abs(savings))} more than your monthly income.`;
+  } else {
+    overspendNote.style.display = "none";
+  }
+
+  // Category totals this month
+  const map = {};
+  entries.forEach(en => {
+    if (en.date.slice(0,7) !== currentMonthKey) return;
+    map[en.category] = (map[en.category] || 0) + en.amount;
+  });
+  const allNames = new Set([...Object.keys(map), ...Object.keys(budget.categoryLimits)]);
+  const catMax = Math.max(1, ...[...allNames].map(n => Math.max(map[n]||0, budget.categoryLimits[n]||0)));
+  const byCategory = [...allNames].map(name => {
+    const total = map[name] || 0;
+    const limit = budget.categoryLimits[name];
+    const over = limit != null && total > limit;
+    return { name, total, limit, over, overBy: over ? total - limit : 0, pct: total/catMax, limitPct: limit != null ? limit/catMax : null };
+  }).sort((a,b) => b.total - a.total);
+
+  const categorySection = document.getElementById("categorySection");
+  const categoryBars = document.getElementById("categoryBars");
+  categoryBars.innerHTML = "";
+  if (byCategory.length > 0) {
+    categorySection.style.display = "block";
+    byCategory.forEach(c => {
+      const row = document.createElement("div");
+      row.style.marginBottom = "10px";
+      row.innerHTML = `
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="width:80px; font-size:13px; color:#C7C4BA; flex-shrink:0;">${c.name}</div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:${Math.max(3, c.pct*100)}%; background:${c.over ? '#C1666B' : catColor(c.name)};"></div>
+            ${c.limitPct != null ? `<div class="bar-marker" style="left:${Math.min(100, c.limitPct*100)}%;" title="Limit: $${fmtMoney(c.limit)}"></div>` : ""}
+          </div>
+          <div class="mono" style="width:100px; text-align:right; font-size:13px; color:${c.over ? '#C1666B' : '#E8E6DE'};">
+            $${fmtMoney(c.total)}${c.limit != null ? ` / ${fmtMoney(c.limit)}` : ""}
+          </div>
+        </div>`;
+      categoryBars.appendChild(row);
+    });
+  } else {
+    categorySection.style.display = "none";
+  }
+
+  // 50/30/20 rule
+  const ruleSection = document.getElementById("ruleSection");
+  const ruleBars = document.getElementById("ruleBars");
+  ruleBars.innerHTML = "";
+  let ruleData = null;
+  if (budget.useRule && income != null && !isNaN(income)) {
+    let needsSpent = 0, wantsSpent = 0;
+    entries.forEach(en => {
+      if (en.date.slice(0,7) !== currentMonthKey) return;
+      const type = budget.categoryTypes[en.category] || "wants";
+      if (type === "needs") needsSpent += en.amount; else wantsSpent += en.amount;
+    });
+    const actualSavings = income - needsSpent - wantsSpent;
+    ruleData = RULE_BUCKETS.map(b => {
+      const target = income * b.pct;
+      const actual = b.key === "needs" ? needsSpent : b.key === "wants" ? wantsSpent : actualSavings;
+      const isSavings = b.key === "savings";
+      const over = isSavings ? actual < target : actual > target;
+      return { ...b, target, actual, over };
+    });
+    ruleSection.style.display = "block";
+    ruleData.forEach(b => {
+      const pct = Math.min(1, b.actual / Math.max(1, b.target));
+      const row = document.createElement("div");
+      row.style.marginBottom = "12px";
+      row.innerHTML = `
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="width:80px; font-size:13px; color:#C7C4BA; flex-shrink:0;">${b.label}</div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:${Math.max(3, pct*100)}%; background:${b.over ? '#C1666B' : b.color};"></div>
+          </div>
+          <div class="mono" style="width:130px; text-align:right; font-size:13px; color:${b.over ? '#C1666B' : '#E8E6DE'};">
+            $${fmtMoney(b.actual)} / ${fmtMoney(b.target)}
+          </div>
+        </div>`;
+      ruleBars.appendChild(row);
+    });
+  } else {
+    ruleSection.style.display = "none";
+  }
+
+  // Alerts
+  const alertBox = document.getElementById("alertBox");
+  const overCats = byCategory.filter(c => c.over);
+  const overRule = ruleData ? ruleData.filter(b => b.over) : [];
+  alertBox.innerHTML = "";
+  if (overCats.length > 0 || overRule.length > 0) {
+    alertBox.style.display = "flex";
+    overRule.forEach(b => {
+      const line = document.createElement("div");
+      line.className = "alert-line";
+      if (b.key === "savings") {
+        line.innerHTML = `⚠️ <span>You're short of your 20% savings target by <span class="mono" style="color:#C1666B;">$${fmtMoney(b.target - b.actual)}</span> this month.</span>`;
+      } else {
+        line.innerHTML = `⚠️ <span>${b.label} is over its 50/30/20 target by <span class="mono" style="color:#C1666B;">$${fmtMoney(b.actual - b.target)}</span> this month.</span>`;
+      }
+      alertBox.appendChild(line);
+    });
+    overCats.forEach(c => {
+      const line = document.createElement("div");
+      line.className = "alert-line";
+      line.innerHTML = `⚠️ <span>${c.name} is over budget by <span class="mono" style="color:#C1666B;">$${fmtMoney(c.overBy)}</span> this month.</span>`;
+      alertBox.appendChild(line);
+    });
+  } else {
+    alertBox.style.display = "none";
+  }
+
+  // Entries list, grouped by month
+  const entriesEmpty = document.getElementById("entriesEmpty");
+  const entriesList = document.getElementById("entriesList");
+  entriesList.innerHTML = "";
+  if (entries.length === 0) {
+    entriesEmpty.style.display = "block";
+  } else {
+    entriesEmpty.style.display = "none";
+    const byMonth = {};
+    entries.forEach(en => {
+      const key = en.date.slice(0,7);
+      if (!byMonth[key]) byMonth[key] = [];
+      byMonth[key].push(en);
+    });
+    const months = Object.entries(byMonth).sort((a,b) => a[0] < b[0] ? 1 : -1);
+    months.forEach(([key, list]) => {
+      list.sort((a,b) => a.date < b.date ? 1 : -1);
+      const total = list.reduce((s,e) => s+e.amount, 0);
+      const monthDiv = document.createElement("div");
+      monthDiv.style.marginBottom = "26px";
+      const header = document.createElement("div");
+      header.style.cssText = "display:flex; justify-content:space-between; border-bottom:1px solid #2A323A; padding-bottom:8px; margin-bottom:4px;";
+      header.innerHTML = `<div style="font-size:13px; color:#8B92A0;">${monthLabel(list[0].date)}</div><div class="mono" style="font-size:13px; color:#8B92A0;">$${fmtMoney(total)}</div>`;
+      monthDiv.appendChild(header);
+      list.forEach(en => {
+        const row = document.createElement("div");
+        row.className = "row";
+        row.style.cssText = "display:flex; align-items:center; gap:12px; padding:9px 4px; border-radius:4px;";
+        row.innerHTML = `
+          <div style="width:7px; height:7px; border-radius:50%; background:${catColor(en.category)}; flex-shrink:0;"></div>
+          <div class="mono" style="font-size:12px; color:#8B92A0; width:44px;">${en.date.slice(5)}</div>
+          <div style="font-size:14px; width:100px; flex-shrink:0; color:#C7C4BA;">${en.category}</div>
+          <div style="font-size:14px; color:#8B92A0; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${en.note}</div>
+          <div class="mono" style="font-size:14px; width:80px; text-align:right;">$${fmtMoney(en.amount)}</div>
+        `;
+        const delBtn = document.createElement("button");
+        delBtn.className = "del-btn";
+        delBtn.innerHTML = "✕";
+        delBtn.addEventListener("click", () => deleteEntry(en.id));
+        row.appendChild(delBtn);
+        monthDiv.appendChild(row);
+      });
+      entriesList.appendChild(monthDiv);
+    });
+  }
+}
+
+renderAll();
+</script>
+</body>
+</html>
